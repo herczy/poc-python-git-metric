@@ -270,6 +270,15 @@ class Row(collections.Sequence):
 
         return self.__row[key]
 
+    def __str__(self):
+        return '<{}>'.format(', '.join(str(v) for v in self))
+
+    def __repr__(self):
+        return '{}({})'.format(
+            type(self).__name__,
+            ', '.join('{}={!r}'.format(k, v) for k, v in zip(self.__dataset.headers, self.__row))
+        )
+
 
 def print_itemized_table(table):
     for row in table:
