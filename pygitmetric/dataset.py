@@ -1,14 +1,24 @@
+import os.path
 import collections
 import ast
+import pickle
 
 
 class Dataset(collections.Mapping):
-    def __init__(self, ref):
+    DEFAULT_CACHE_PATH = os.path.join(os.getenv('HOME'), '.cache', 'pygitmetric')
+
+    def __init__(self, ref, *, cache_path=None):
+        if cache_path is None:
+            cache_path = self.DEFAULT_CACHE_PATH
+
+        if not os.path.isdir(cache_path):
+            os.makedirs(cache_path)
+
         self.__ref = ref
         self.__files = {}
         self.__blobs = {}
 
-        self._build()
+        self._build(cache_path)
 
     def __len__(self):
         return len(self.__files)
@@ -19,7 +29,22 @@ class Dataset(collections.Mapping):
     def __getitem__(self, key):
         return self.__files[key]
 
-    def _build(self):
+    def _build(self, cache_path):
+        item_path = os.path.join(cache_path, self.__ref.commit.hexsha)
+        if not os.path.isfile(item_path):
+            self._build_from_scratch()
+
+            with open(item_path, 'wb') as cached:
+                pickle.dump(
+                    (self.__files, self.__blobs),
+                    cached
+                )
+
+        else:
+            with open(item_path, 'rb') as cached:
+                self.__files, self.__blobs = pickle.load(cached)
+
+    def _build_from_scratch(self):
         self._build_commit(self.__ref.commit)
         unprocessed = self.__files
         self.__files = {}
@@ -48,19 +73,19 @@ class Dataset(collections.Mapping):
         for item in commit.tree:
             self._build_object(commit, item, path=(item.name,))
 
-    def _build_tree(self, commit, tree, *, path=()):
+    def _build_tree(self, commit, tree, path=()):
         for item in tree:
             item_path = path + (item.name,)
             self._build_object(commit, item, path=item_path)
 
-    def _build_object(self, commit, item, *, path):
+    def _build_object(self, commit, item, path):
         if item.type == 'blob':
             self._build_blob(commit, item, path=path)
 
         elif item.type == 'tree':
             self._build_tree(commit, item, path=path)
 
-    def _build_blob(self, commit, blob, *, path):
+    def _build_blob(self, commit, blob, path):
         if blob.mime_type != 'text/x-python':
             return
 
@@ -79,7 +104,11 @@ class Dataset(collections.Mapping):
         if path not in self.__files:
             self.__files[path] = []
 
-        self.__files[path].append(_FileInfo(commit, blob, parsed))
+        commit_info = _CommitInfo(commit.hexsha, commit.authored_date)
+        blob_info = _BlobInfo(blob.hexsha)
+        self.__files[path].append(_FileInfo(commit_info, blob_info, parsed))
 
 
 _FileInfo = collections.namedtuple('_FileInfo', 'commit blob parsed')
+_CommitInfo = collections.namedtuple('_CommitInfo', 'hexsha authored_date')
+_BlobInfo = collections.namedtuple('_BlobInfo', 'hexsha')
