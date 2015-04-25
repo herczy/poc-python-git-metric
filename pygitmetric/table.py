@@ -6,7 +6,9 @@ import itertools
 
 
 class Table(collections.Sequence):
-    DEFAULT_GROUP_COLUMN = 'group'
+    @classmethod
+    def from_list(cls, headers, data):
+        return cls(List(headers, data))
 
     def __init__(self, dataset):
         self.__dataset = dataset
@@ -51,14 +53,19 @@ class Table(collections.Sequence):
         for key, rows in groups.items():
             yield key, Table(rows)
 
-    def sort(self, key=None):
+    def sort(self, key=None, desc=False):
         res = list(self)
-        res.sort(key=key)
+        res.sort(key=key, reverse=desc)
 
-        return type(self)(self.__headers, List(res))
+        return type(self)(List(self.headers, res))
 
-    def sort_by(self, columns):
-        return self.sort(functools.partial(self.__get_columns, columns=columns))
+    def sort_by(self, columns, desc=False):
+        columns = self.__prepare_columns(columns)
+
+        def _key(row):
+            return tuple(row[col] for col in columns)
+
+        return self.sort(_key, desc)
 
     def select(self, condition):
         @view(*self.headers)
@@ -68,6 +75,75 @@ class Table(collections.Sequence):
                     yield row
 
         return type(self)(filter())
+
+    def uniq(self, columns):
+        columns = self.__prepare_columns(columns)
+
+        @view(*self.headers)
+        def uniq():
+            seen = set()
+
+            for row in self:
+                key = tuple(row[col] for col in columns)
+                if key in seen:
+                    continue
+
+                yield row
+                seen.add(key)
+
+        return type(self)(uniq())
+
+    def map(self, headers, function):
+        @view(*headers)
+        def mapper():
+            for row in self:
+                yield tuple(function(row))
+
+        return Table(mapper())
+
+    def map_column(self, column, function):
+        col_index = self.headers.index(column)
+
+        def _mapper(row):
+            for index, item in enumerate(row):
+                if index == col_index:
+                    yield function(item)
+
+                else:
+                    yield item
+
+        return self.map(self.headers, _mapper)
+
+    def join(self, other, join_on_columns):
+        join_on_columns = tuple(self.__prepare_columns(join_on_columns))
+
+        headers_self = tuple(
+            'self.{}'.format(h) for h in self.headers if h not in join_on_columns
+        )
+        headers_other = tuple(
+            'other.{}'.format(h) for h in other.headers if h not in join_on_columns
+        )
+
+        def _filter_rows(row):
+            return [row[key] for key in join_on_columns]
+
+        def _get_selector(values):
+            def _select(row):
+                return _filter_rows(row) == values
+
+            return _select
+
+        @view(*(join_on_columns + headers_self + headers_other))
+        def join_dataset():
+            for row in self:
+                key = _filter_rows(row)
+
+                left_side = key + [row[key] for key in self.headers if key not in join_on_columns]
+                for other_row in other.select(_get_selector(key)):
+                    yield left_side + [other_row[key] for key in other.headers if key not in join_on_columns]
+
+
+        return Table(join_dataset())
 
 
 class Data(collections.Sequence):
@@ -197,4 +273,19 @@ def print_itemized_table(table):
         for name, col in zip(table.headers, row):
             print('{}: {}'.format(name, col))
 
+        print()
+
+
+def print_fancy_table(table):
+    widths = [len(h) for h in table.headers]
+    rows = [tuple(table.headers)]
+    for row in table:
+        rows.append([str(v) for v in row])
+        widths = [max(w, len(r)) for w, r in zip(widths, rows[-1])]
+
+    rows.insert(1, ('=' * width for width in widths))
+
+    for row in rows:
+        for width, item in zip(widths, row):
+            print(item + (' ' * (width - len(item))), end=' ')
         print()

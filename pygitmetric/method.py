@@ -6,14 +6,14 @@ from .table import view
 from . import asthelper
 
 
-@view('index', 'method', 'node')
+@view('modid', 'path', 'method', 'commit', 'time', 'node')
 def methods(dataset):
     for row in dataset:
         collector = _CollectMethods()
         collector.visit(row['parsed'])
 
         for method, node in collector.methods.items():
-            yield row['index'], method, node
+            yield row['blob'], row['path'], method, row['commit'], row['time'], node
 
 
 class _CollectMethods(ast.NodeVisitor):

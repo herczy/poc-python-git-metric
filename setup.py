@@ -10,7 +10,7 @@ except ImportError:
 
 setup(
     name="pygitmetric",
-    description="Git-aware code metrics for Python repositories",
+    description="Git-aware code metrics for Python repositories (POC)",
     long_description= """\
 Calculate some metrics of a Python code based on the git repository and
 the changes committed. This way we can calculate how a code base has changed.
@@ -32,5 +32,10 @@ metrics.
     maintainer_email="viktor.hercinger@balabit.com",
     zip_safe=True,
     use_2to3=False,
-    packages=['pygitmetric']
+    entry_points={
+        'console_scripts': [
+            'pygitmetric = pygitmetric.__main__:main'
+        ]
+    },
+    packages=['pygitmetric', 'pygitmetric.metric']
 )

@@ -3,7 +3,8 @@ import git
 
 from .dataset import dataset
 from .method import methods
-from .table import print_itemized_table, Table, List
+from .table import print_itemized_table, print_fancy_table, Table, List
+from .metric import run_metric
 from . import asthelper as ast
 
 
@@ -21,7 +22,7 @@ class Repo(Table):
 
     @property
     def methods(self):
-        return Table(methods(self.dataset))
+        return Table(methods(self))
 
     def select_path(self, path):
         def cond(row):
