@@ -19,5 +19,9 @@ def _get_metric(name):
 
 
 def __import_module(name):
-    __import__(name)
-    return sys.modules[name]
+    try:
+        __import__(name)
+        return sys.modules[name]
+
+    except ImportError as exc:
+        raise ImportError('Could not load metric module {!r}'.format(name))

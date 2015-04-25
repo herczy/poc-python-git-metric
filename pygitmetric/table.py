@@ -239,7 +239,10 @@ class _View(Data):
 
 class Slice(_View):
     def __init__(self, base, slice):
-        super().__init__(base.headers, itertools.isslice(self.__base, slice))
+        super().__init__(
+            base.headers,
+            itertools.islice(base, slice.start, slice.stop, slice.step)
+        )
 
 
 def view(*headers):
